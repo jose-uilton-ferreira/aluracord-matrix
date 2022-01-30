@@ -1,21 +1,57 @@
-import { Box, Text, TextField, Image, Button } from '@skynexui/components';
 import React from 'react';
+import { createClient } from '@supabase/supabase-js';
+import { useRouter } from 'next/router';
+import { Box, Text, TextField, Image, Button } from '@skynexui/components';
+import { ButtonSendSticker } from '../src/components/ButtonSendSticker';
 import appConfig from '../config.json';
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function escutaNovaMensagem(exibeMensagem) {
+  return supabaseClient
+    .from('mensagens')
+    .on('INSERT', data => exibeMensagem(data.new))
+    .subscribe();
+}
 
 export default function ChatPage() {
   // Sua lógica vai aqui
+  const router = useRouter();
   const [mensagem, setMensagem] = React.useState('');
   const [listaMensagens, setListaMensagens] = React.useState([]);
 
+  const usuarioLogado = router.query.username;
+
+  React.useEffect(() => {
+    supabaseClient
+      .from('mensagens')
+      .select('*')
+      .order('id', { ascending: false })
+      .then(({ data }) => {
+        setListaMensagens(data);
+      });
+    
+    escutaNovaMensagem(novaMensagem => {
+      setListaMensagens(listaMensagensAtual => [
+        novaMensagem,
+        ...listaMensagensAtual
+      ]);
+    });
+  }, []);
+
   function handleNovaMensagem(novaMensagem) {
-    setListaMensagens([
-      {
-        id: listaMensagens.length,
-        de: 'jose-uilton-ferreira',
+    const mensagem = {
+        de: usuarioLogado,
         texto: novaMensagem,
-      },
-      ...listaMensagens,
-    ]);
+    }
+
+    supabaseClient
+      .from('mensagens')
+      .insert([mensagem])
+      .then(({ data }) => {})
+
     setMensagem('');
   }
 
@@ -30,7 +66,7 @@ export default function ChatPage() {
     [X] Criar os states mensagem e listaMensagens
     [X] Usar o onChange para atualizar a mensagem e limparmos a mensagem quando o usuário pressionar enter
     [X] Adicionar a mensagem no array listaMensagens
-    [] Exibir as mensagens
+    [X] Exibir as mensagens
   */
 
   // ./Sua lógica vai aqui
@@ -109,6 +145,12 @@ export default function ChatPage() {
                 backgroundColor: appConfig.theme.colors.neutrals[800],
                 marginRight: '12px',
                 color: appConfig.theme.colors.neutrals[200],
+              }}
+            />
+
+            <ButtonSendSticker
+              onSelectedSticker={sticker => {
+                handleNovaMensagem(`:sticker: ${sticker}`);
               }}
             />
           </Box>
@@ -191,10 +233,21 @@ function MessageList(props) {
               }}
               tag="span"
             >
-              {(new Date().toLocaleDateString())}
+              {(new Date(mensagem.created_at)).toLocaleDateString()}
             </Text>
           </Box>
-          {mensagem.texto}
+          
+          { mensagem.texto.startsWith(':sticker:') ? (
+            <Image
+              styleSheet={{
+                maxWidth: '100px',
+              }}
+              src={mensagem.texto.replace(':sticker: ', '')}
+            />
+          ) : (
+            mensagem.texto
+          ) }
+
         </Text>
       ))}
 
