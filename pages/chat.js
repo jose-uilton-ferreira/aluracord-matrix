@@ -1,7 +1,8 @@
 import React from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/router';
-import { Box, Text, TextField, Image, Button } from '@skynexui/components';
+import { Box, Text, TextField, Image, Button, Icon } from '@skynexui/components';
+import { Loader } from '../src/components/Loader';
 import { ButtonSendSticker } from '../src/components/ButtonSendSticker';
 import appConfig from '../config.json';
 
@@ -21,6 +22,7 @@ export default function ChatPage() {
   const router = useRouter();
   const [mensagem, setMensagem] = React.useState('');
   const [listaMensagens, setListaMensagens] = React.useState([]);
+  const [isLoading, setLoading] = React.useState(true);
 
   const usuarioLogado = router.query.username;
 
@@ -31,8 +33,9 @@ export default function ChatPage() {
       .order('id', { ascending: false })
       .then(({ data }) => {
         setListaMensagens(data);
+        setLoading(false);
       });
-    
+
     escutaNovaMensagem(novaMensagem => {
       setListaMensagens(listaMensagensAtual => [
         novaMensagem,
@@ -43,33 +46,34 @@ export default function ChatPage() {
 
   function handleNovaMensagem(novaMensagem) {
     const mensagem = {
-        de: usuarioLogado,
-        texto: novaMensagem,
+      de: usuarioLogado,
+      texto: novaMensagem,
     }
 
     supabaseClient
       .from('mensagens')
       .insert([mensagem])
-      .then(({ data }) => {})
+      .then();
 
     setMensagem('');
   }
 
-  /*
-    // User
-    - Digitar a mensagem no TextField
-    - clicar em enter para enviar a mensagem
-    - Ver as mensagens na tela
+  function handleDeleteMensagem(idMensagem, index) {
 
-    // Dev
-    [X] Criar o campo
-    [X] Criar os states mensagem e listaMensagens
-    [X] Usar o onChange para atualizar a mensagem e limparmos a mensagem quando o usuário pressionar enter
-    [X] Adicionar a mensagem no array listaMensagens
-    [X] Exibir as mensagens
-  */
+    supabaseClient
+      .from('mensagens')
+      .delete()
+      .match({ id: idMensagem })
+      .then();
 
-  // ./Sua lógica vai aqui
+    setListaMensagens(listaMensagensAtual => {
+      const copyMensagens = [...listaMensagensAtual];
+      copyMensagens.splice(index, 1);
+      return copyMensagens;
+    });
+
+  }
+
   return (
     <Box
       styleSheet={{
@@ -80,6 +84,8 @@ export default function ChatPage() {
         color: appConfig.theme.colors.neutrals['000']
       }}
     >
+      <Loader isLoading={isLoading} />
+
       <Box
         styleSheet={{
           display: 'flex',
@@ -116,12 +122,16 @@ export default function ChatPage() {
             )
           }) } */}
 
-          <MessageList mensagens={listaMensagens} />
+          <MessageList
+            mensagens={listaMensagens}
+            onDeleteMensagem={handleDeleteMensagem}
+          />
 
           <Box
             as="form"
             styleSheet={{
               display: 'flex',
+              gap: '10px',
               alignItems: 'center',
             }}
           >
@@ -143,8 +153,28 @@ export default function ChatPage() {
                 borderRadius: '5px',
                 padding: '6px 8px',
                 backgroundColor: appConfig.theme.colors.neutrals[800],
-                marginRight: '12px',
                 color: appConfig.theme.colors.neutrals[200],
+              }}
+            />
+
+            <Button
+              type="button"
+              styleSheet={{
+                borderRadius: '50%',
+                padding: '0 3px 0 0',
+                minWidth: '50px',
+                minHeight: '50px',
+                fontSize: '20px',
+                marginBottom: '8px',
+                lineHeight: '0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: appConfig.theme.colors.neutrals[300],
+              }}
+              iconName="paperPlane"
+              onClick={() => {
+                handleNovaMensagem(mensagem);
               }}
             />
 
@@ -178,7 +208,7 @@ function Header() {
   )
 }
 
-function MessageList(props) {
+function MessageList({ mensagens, onDeleteMensagem }) {
 
   return (
     <Box
@@ -193,7 +223,7 @@ function MessageList(props) {
       }}
     >
 
-      {props.mensagens.map(mensagem => (
+      {mensagens.map((mensagem, i) => (
         <Text
           key={mensagem.id}
           tag="li"
@@ -235,9 +265,22 @@ function MessageList(props) {
             >
               {(new Date(mensagem.created_at)).toLocaleDateString()}
             </Text>
+
+            <Box
+              styleSheet={{
+                padding: '5px',
+                marginLeft: '10px',
+                cursor: 'pointer',
+                color: appConfig.theme.colors.primary['600'],
+                backgroundColor: appConfig.theme.colors.neutrals['700']
+              }}
+              onClick={() => onDeleteMensagem(mensagem.id, i)}
+            >
+              <Icon name="FaTrash" />
+            </Box>
           </Box>
-          
-          { mensagem.texto.startsWith(':sticker:') ? (
+
+          {mensagem.texto.startsWith(':sticker:') ? (
             <Image
               styleSheet={{
                 maxWidth: '100px',
@@ -246,7 +289,7 @@ function MessageList(props) {
             />
           ) : (
             mensagem.texto
-          ) }
+          )}
 
         </Text>
       ))}
